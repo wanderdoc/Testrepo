@@ -1,2 +1,2 @@
-# Testrepo
+# PerlSnippets
 Test
