@@ -1,0 +1,264 @@
+#!perl
+use strict;
+use warnings FATAL => qw(all);
+
+=comment
+These are just learning exercises!
+=cut
+
+
+
+
+
+
+sub permutations_iterator 
+{
+     my @array = @_;
+
+     my @stack = ([]); 
+     my @remaining = (\@array); 
+
+     return sub 
+     {
+          while (@stack) 
+          {
+               # Get the current state
+               my $partial = pop @stack; 
+               my $rest = pop @remaining; 
+                    
+               if (@$rest == 0) 
+               {
+                    # Complete permutation
+                    return $partial;
+               } 
+               else 
+               {
+                    for my $i ( reverse 0 .. $#$rest)
+                    {
+                         my @new_partial = (@$partial, $rest->[$i]);
+                         my @new_rest = @$rest;
+                         splice(@new_rest, $i, 1);
+                         push @stack, \@new_partial;
+                         push @remaining, \@new_rest;
+                    }
+               }
+          }
+          # If the stack is empty, we're done
+          return undef;
+     };
+}
+
+# my $iterator = permutations_iterator(1..9);
+# while (my $permutation = $iterator->()) 
+# {
+    # print "<" . join(", ", @$permutation) . ">\n";
+# }
+
+
+
+sub derangements_iterator 
+{
+     my @array = @_;
+
+     my @stack = ([]);  
+     my @remaining = (\@array); 
+
+     return sub 
+     {
+          while (@stack) 
+          {
+               my $partial = pop @stack; 
+               my $rest = pop @remaining; 
+               
+               if (@$rest == 0) 
+               {
+                    return $partial;  # Already validated at this point
+               } 
+               else 
+               {
+                    for my $i (reverse 0 .. $#$rest) 
+                    {
+                         # Check if adding this element would keep it in its original position
+                         if ($rest->[$i] eq $array[@$partial]) 
+                         {
+                              next;  # Skip 
+                         }
+
+                    my @new_partial = (@$partial, $rest->[$i]);
+                    my @new_rest = @$rest;
+                    splice(@new_rest, $i, 1);
+                    push @stack, \@new_partial;
+                    push @remaining, \@new_rest;
+                }
+            }
+        }
+        return undef;
+    };
+}
+
+sub variations_iterator
+{
+     my ($aref, $k, $flag_repetition) = @_;
+     my @array = @$aref;
+
+     my @stack = ([]);  
+     my @remaining = (\@array); 
+
+     return sub 
+     {
+          while (@stack) 
+          {
+               # Get the current state
+               my $partial = pop @stack; 
+               my $rest = pop @remaining;
+                    
+               if ( @$partial == $k )
+               {
+                    return $partial;
+               }
+               else 
+               {
+                    for my $i ( reverse 0 .. $#$rest)
+                    {
+                         # New partial permutation
+                         my @new_partial = (@$partial, $rest->[$i]);
+
+                         # New remaining array excluding the current element
+                         # (if no repetition):
+                         my @new_rest = @$rest;
+                         if ( not $flag_repetition )
+                         {
+                              splice(@new_rest, $i, 1);
+                         }
+                         push @stack, \@new_partial;
+                         push @remaining, \@new_rest;
+                         
+                    }
+               }
+          }
+          return undef;
+     };
+}
+
+sub combinations_iterator 
+{
+     my ($aref, $k, $flag_repetitions) = @_;
+     my @array = @$aref;  # Input array is already sorted
+     my @stack = ([[], 0]);  # [current_combination, start_index]
+    
+     return sub 
+     {
+          while (@stack) 
+          {
+               my $state = pop @stack;
+               my ($partial, $idx) = @$state; 
+
+               if (@$partial == $k) 
+               {
+                    return $partial;  # Return when the combination is complete
+               } 
+               else 
+               {
+                    for my $i (reverse $idx .. $#array) 
+                    {
+                         if ( $flag_repetitions )
+                         {
+                              push @stack, [[@$partial, $array[$i]], $i];
+                         }
+                         else
+                         {
+                              push @stack, [[@$partial, $array[$i]], $i + 1];
+                         }
+                    }
+               }
+          }
+          return undef;
+    };
+}
+
+# To implement: subsets of certain length $k.
+sub subsets
+{
+    my $aref = $_[0];
+    my $length = scalar @$aref;
+    my $total = 2 ** $length; # Total number of subsets
+    
+    my $current = 0; # Start from the first bitmask
+    
+    return sub 
+    {
+          if ($current >= $total) 
+          {
+               return undef; # All subsets are generated
+          }
+        
+          # Generate the current subset based on the bitmask
+          my $bitmask = sprintf("%0${length}b", $current);
+          my @bits = reverse split(//, $bitmask);
+          my @included = grep { $bits[$_] == 1 } 0 .. $#bits;
+        
+          $current++; # Increment the bitmask
+        
+          return [@{$aref}[@included]]; # Return the subset
+    };
+}
+
+sub partitions 
+{
+     my ($aref, $k) = @_; 
+     my @elements = @$aref;
+     my @partitions; 
+
+     my @stack = ( [ \@elements, [] ] );  # [ remaining_elements, current_partition ]
+
+     while (@stack) 
+     {
+          my ($remaining, $current_partition) = @{pop @stack};
+
+          if (!@$remaining) 
+          {
+               if ( $k and scalar(@$current_partition) == $k)
+               {
+                    push @partitions, [ map { [@$_] } @$current_partition ];  # Deep copy
+               }
+               elsif (not defined $k)
+               {
+                    push @partitions, [ map { [@$_] } @$current_partition ];  # Deep copy
+               }
+               next;
+          }
+
+          # Get the next element to process
+          my ($element, @rest) = @$remaining;
+
+          # Case 1: Add the element to each existing subset in the current partition
+          for my $i (0 .. $#$current_partition) 
+          {
+               my @new_partition = map { [@$_] } @$current_partition;  # Deep copy
+               push @{$new_partition[$i]}, $element;  # Add to subset $i
+               push @stack, [ \@rest, \@new_partition ];
+          }
+
+          # Case 2: Start a new subset with the element
+          # Only allow this if it won't create too many parts
+
+          if ($k and scalar(@$current_partition) + 1 <= $k) 
+          {
+               push @stack, [ \@rest, [ @$current_partition, [$element] ] ];
+          }
+          elsif ( not defined $k )
+          {
+               push @stack, [ \@rest, [ @$current_partition, [$element] ] ];
+          }
+     }
+
+     # Iterator to yield partitions one at a time
+     my $index = 0;
+     return sub 
+     {
+          return undef if $index >= @partitions;  # No more partitions
+          return $partitions[$index++];
+     };
+}
+
+1;
